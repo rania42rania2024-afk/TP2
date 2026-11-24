@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Exécution Python — TP Ordonnancement Q5 et Q6</title>
+  <script src="https://cdn.jsdelivr.net/pyodide/v314.0.8/full/pyodide.js"></script>
+  <style>
+    :root{--navy:#12345a;--blue:#2474b8;--pale:#eaf3fb;--gold:#c6a45b;--ink:#243447}
+    *{box-sizing:border-box}body{margin:0;background:#f3f6fa;color:var(--ink);font-family:Arial,sans-serif}
+    header{background:linear-gradient(120deg,#102b4c,#1d5c91);color:white;padding:30px 20px;text-align:center;border-bottom:4px solid var(--gold)}
+    header h1{margin:0 0 8px;font-size:clamp(22px,4vw,32px)}header p{margin:0;color:#e3edf7}
+    main{max-width:1050px;margin:28px auto;padding:0 16px}
+    .panel{background:white;border:1px solid #dce5ee;border-radius:14px;padding:22px;margin-bottom:20px;box-shadow:0 5px 18px #183b5b0d}
+    h2{color:var(--navy);font-size:20px;margin:0 0 12px;border-left:4px solid var(--gold);padding-left:10px}
+    .status{padding:12px 14px;border-radius:9px;background:var(--pale);color:var(--navy);margin:12px 0;font-weight:600}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
+    button{background:var(--blue);color:white;border:0;border-radius:8px;padding:11px 18px;font-weight:700;cursor:pointer}
+    button:disabled{opacity:.55;cursor:wait}button.secondary{background:#e7edf4;color:var(--navy)}
+    pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#101d2b;color:#e5eef8;padding:18px;border-radius:10px;min-height:130px;line-height:1.55;font-size:14px}
+    #plots{display:grid;grid-template-columns:1fr;gap:14px}#plots>div{background:#fff;border:1px solid #dce5ee;border-radius:10px;padding:8px;overflow:auto}
+    footer{text-align:center;color:#66788a;font-size:13px;padding:12px 16px 30px}
+  </style>
+</head>
+<body>
+<header>
+  <h1>Travaux pratiques d'ordonnancement</h1>
+  <p>Exécution interactive des questions Q5 et Q6 — Python dans le navigateur</p>
+</header>
+<main>
+  <section class="panel">
+    <h2>Exécution du programme</h2>
+    <p>Le programme Python du dépôt GitHub est chargé puis exécuté automatiquement. Les résultats et les diagrammes de Gantt apparaissent ci-dessous.</p>
+    <div id="status" class="status">Initialisation de l'environnement Python…</div>
+    <div class="actions">
+      <button id="runBtn" disabled>Réexécuter Q5 et Q6</button>
+      <button class="secondary" id="clearBtn">Effacer les résultats</button>
+      <a href="https://github.com/rania42rania2024-afk/TP2/blob/main/TP_A1_A2.py" target="_blank" rel="noopener" style="align-self:center;color:#1d5c91">Consulter le fichier Python</a>
+    </div>
+  </section>
+  <section class="panel">
+    <h2>Résultats de l'exécution</h2>
+    <pre id="output">Chargement en cours…</pre>
+  </section>
+  <section class="panel">
+    <h2>Diagrammes de Gantt</h2>
+    <div id="plots"></div>
+  </section>
+</main>
+<footer>Réalisé avec Python et Pyodide — aucune installation locale de Python n'est nécessaire.</footer>
+<script>
+  const PY_FILE = "https://raw.githubusercontent.com/rania42rania2024-afk/TP2/main/TP_A1_A2.py";
+  const statusBox = document.getElementById("status");
+  const output = document.getElementById("output");
+  const runBtn = document.getElementById("runBtn");
+  let pyodideReady;
+  let sourceCode = "";
+
+  function setStatus(message){ statusBox.textContent = message; }
+  function appendOutput(message){ output.textContent += message; }
+
+  async function initialize(){
+    try{
+      setStatus("Chargement de Python et de Matplotlib…");
+      const pyodide = await loadPyodide();
+      await pyodide.loadPackage(["matplotlib"]);
+      pyodide.globals.set("append_output", appendOutput);
+      pyodide.runPython(`
+import sys
+import js
+class BrowserWriter:
+    def write(self, text):
+        append_output(str(text))
+    def flush(self):
+        pass
+sys.stdout = BrowserWriter()
+sys.stderr = BrowserWriter()
+`);
+      setStatus("Chargement du fichier Python depuis GitHub…");
+      const response = await fetch(PY_FILE, {cache:"no-store"});
+      if(!response.ok) throw new Error("Impossible de charger le fichier Python (HTTP " + response.status + ").");
+      sourceCode = await response.text();
+      if(!sourceCode.includes("Q5") || !sourceCode.includes("Q6")) throw new Error("Le fichier chargé ne semble pas contenir Q5 et Q6.");
+      pyodide.globals.set("python_source", sourceCode);
+      pyodide.globals.set("plots_target", document.getElementById("plots"));
+      pyodide.runPython(`
+import js
+js.document.pyodideMplTarget = js.document.getElementById("plots")
+`);
+      pyodideReady = pyodide;
+      runBtn.disabled = false;
+      setStatus("Python est prêt. Lancement automatique de Q5 et Q6…");
+      await executeProgram();
+    }catch(error){
+      setStatus("Erreur : " + error.message);
+      output.textContent = String(error);
+    }
+  }
+
+  async function executeProgram(){
+    if(!pyodideReady || !sourceCode) return;
+    runBtn.disabled = true;
+    output.textContent = "";
+    document.getElementById("plots").innerHTML = "";
+    setStatus("Exécution des algorithmes Q5 et Q6…");
+    try{
+      pyodideReady.globals.set("python_source", sourceCode);
+      await pyodideReady.runPythonAsync(`exec(compile(python_source, "TP_A1_A2.py", "exec"), {"__name__": "__main__"})`);
+      setStatus("Exécution terminée avec succès.");
+    }catch(error){
+      appendOutput("\n\nERREUR D'EXECUTION : " + error);
+      setStatus("Une erreur est survenue pendant l'exécution.");
+    }finally{
+      runBtn.disabled = false;
+    }
+  }
+
+  runBtn.addEventListener("click", executeProgram);
+  document.getElementById("clearBtn").addEventListener("click", () => {
+    output.textContent = "";
+    document.getElementById("plots").innerHTML = "";
+  });
+  initialize();
+</script>
+</body>
+</html>
